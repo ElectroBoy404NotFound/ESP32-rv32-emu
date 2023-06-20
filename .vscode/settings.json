@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "string_view": "c",
+        "emulator.h": "c",
+        "cstdio": "c",
+        "fstream": "c"
+    }
+}
