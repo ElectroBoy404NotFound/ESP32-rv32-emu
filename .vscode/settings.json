@@ -3,6 +3,9 @@
         "string_view": "c",
         "emulator.h": "c",
         "cstdio": "c",
-        "fstream": "c"
+        "fstream": "c",
+        "array": "c",
+        "string": "c",
+        "eeprom.h": "c"
     }
 }

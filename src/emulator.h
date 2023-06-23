@@ -1,7 +1,25 @@
-#ifndef EMULATOR_H_
-#define EMULATOR_H_
+// Copyright 2022 Charles Lohr, you may use this file or any portions herein under any of the BSD, MIT, or CC0 licenses.
 
-#define TAG __FILE__
+#ifndef _MINI_RV32IMAH_H
+#define _MINI_RV32IMAH_H
+
+/**
+    To use mini-rv32ima.h for the bare minimum, the following:
+
+	#define MINI_RV32_RAM_SIZE ram_amt
+	#define MINIRV32_IMPLEMENTATION
+
+	#include "mini-rv32ima.h"
+
+	Though, that's not _that_ interesting. You probably want I/O!
+
+
+	Notes:
+		* There is a dedicated CLNT at 0x10000000.
+		* There is free MMIO from there to 0x12000000.
+		* You can put things like a UART, or whatever there.
+		* Feel free to override any of the functionality with macros.
+*/
 
 #ifndef MINIRV32WARN
 	#define MINIRV32WARN( x... );
@@ -516,3 +534,5 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 #endif
 
 #endif
+
+

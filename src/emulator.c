@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2023, Jisheng Zhang <jszhang@kernel.org>. All rights reserved.
+ *
+ * Use some code of mini-rv32ima.c from https://github.com/cnlohr/mini-rv32ima
+ * Copyright 2022 Charles Lohr
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -9,10 +18,14 @@
 #include "freertos/task.h"
 #include "esp_attr.h"
 #include "esp_log.h"
+#include "esp_flash.h"
 #include "esp_timer.h"
+// #include "hal/usb_serial_jtag_ll.h"
 
-#include "ram.h"
+#include "cache.h"
+#include "psram.h"
 
+const char *TAG = "uc-rv32";
 static uint32_t ram_amt = 8 * 1024 * 1024;
 
 static uint64_t GetTimeMicroseconds();
@@ -39,37 +52,37 @@ static int ReadKBByte();
 #define MINIRV32_CUSTOM_MEMORY_BUS
 static void MINIRV32_STORE4(uint32_t ofs, uint32_t val)
 {
-	ram_write(ofs, &val, 4, true);
+	cache_write(ofs, &val, 4);
 }
 
 static void MINIRV32_STORE2(uint32_t ofs, uint16_t val)
 {
-	ram_write(ofs, &val, 2, true);
+	cache_write(ofs, &val, 2);
 }
 
 static void MINIRV32_STORE1(uint32_t ofs, uint8_t val)
 {
-	ram_write(ofs, &val, 1, true);
+	cache_write(ofs, &val, 1);
 }
 
 static uint32_t MINIRV32_LOAD4(uint32_t ofs)
 {
 	uint32_t val;
-	ram_read(ofs, &val, 4);
+	cache_read(ofs, &val, 4);
 	return val;
 }
 
 static uint16_t MINIRV32_LOAD2(uint32_t ofs)
 {
 	uint16_t val;
-	ram_read(ofs, &val, 2);
+	cache_read(ofs, &val, 2);
 	return val;
 }
 
 static uint8_t MINIRV32_LOAD1(uint32_t ofs)
 {
 	uint8_t val;
-	ram_read(ofs, &val, 1);
+	cache_read(ofs, &val, 1);
 	return val;
 }
 
@@ -79,9 +92,10 @@ static void DumpState(struct MiniRV32IMAState *core)
 {
 	unsigned int pc = core->pc;
 	unsigned int *regs = (unsigned int *)core->regs;
-	// uint64_t thit, taccessed;
+	uint64_t thit, taccessed;
 
-	// ESP_LOGI(TAG, "hit: %llu accessed: %llu\n", thit, taccessed);
+	cache_get_stat(&thit, &taccessed);
+	ESP_LOGI(TAG, "hit: %llu accessed: %llu\n", thit, taccessed);
 	ESP_LOGI(TAG, "PC: %08x ", pc);
 	ESP_LOGI(TAG, "Z:%08x ra:%08x sp:%08x gp:%08x tp:%08x t0:%08x t1:%08x t2:%08x s0:%08x s1:%08x a0:%08x a1:%08x a2:%08x a3:%08x a4:%08x a5:%08x ",
 		regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6], regs[7],
@@ -100,43 +114,12 @@ static struct MiniRV32IMAState core;
 
 void app_main(void)
 {
-	int dtb_ptr;
-	long int flen;
-	uint32_t addr, flashaddr;
 
-	ESP_LOGI(TAG, "RAM init\n");
-
-	int ret = ram_init();
-	if (ret != 0) {
-		ESP_LOGE(TAG, "Failed to init RAM! Status code: %d\n", ret);
-		return;
-	}
-
-	ESP_LOGI(TAG, "RAM init successful\n");
 restart:
-	flen = kernel_end - kernel_start;
-	if (flen > ram_amt) {
-		ESP_LOGE(TAG, "Error: Could not fit RAM image (%ld bytes) into %"PRIu32"\n", flen, ram_amt);
-		return;
-	}
-
-	addr = 0;
-	flashaddr = kernel_start;
-	ESP_LOGI(TAG, "loading kernel Image (%ld bytes) from flash:%lx into RAM:%lx\n", flen, flashaddr, addr);
-	ram_copyfromflash(flashaddr, flen, addr);
-
-	flen = dtb_end - dtb_start;
-	dtb_ptr = ram_amt - flen;
-
-	addr = dtb_ptr;
-	flashaddr = dtb_start;
-	ESP_LOGI(TAG, "loading dtb (%ld bytes) from flash:%lx into RAM:%lx\n", flen, flashaddr, addr);
-	ram_copyfromflash(flashaddr, flen, addr);
-
 	core.pc = MINIRV32_RAM_IMAGE_OFFSET;
 	core.regs[10] = 0x00; //hart ID
 	 //dtb_pa must be valid pointer
-	core.regs[11] = dtb_ptr + MINIRV32_RAM_IMAGE_OFFSET;
+	core.regs[11] = (dtb_start - 0x200000) + MINIRV32_RAM_IMAGE_OFFSET;
 	core.extraflags |= 3; // Machine-mode.
 
 	// Image is loaded.
@@ -151,7 +134,9 @@ restart:
 		lastTime += elapsedUs;
 		 // Execute upto 1024 cycles before breaking out.
 		ret = MiniRV32IMAStep(&core, NULL, 0, elapsedUs, instrs_per_flip);
-		// ESP_LOGI(TAG, "%d", ret);
+		uint64_t hit, access;
+		cache_get_stat(&hit, &access);
+		// ESP_LOGI(TAG, "Cache Hit: %llu, Access: %llu", hit, access);
 		switch (ret) {
 		case 0:
 			break;
@@ -160,21 +145,21 @@ restart:
 			*this_ccount += instrs_per_flip;
 			break;
 		case 3:
+			ESP_LOGI(TAG, "Invalid OP-Code!");
 			break;
 
 		//syscon code for restart
 		case 0x7777:
+			ESP_LOGI(TAG, "RESTART@0x%lu", core.pc);
 			goto restart;
 
 		//syscon code for power-off
 		case 0x5555:
-			ESP_LOGI(TAG, "POWEROFF@0x%"PRIu32"%"PRIu32"\n", core.cycleh, core.cyclel);
+			ESP_LOGI(TAG, "POWEROFF@0x%lu", core.pc);
 			DumpState(&core);
-			ram_poweroff();
 			return;
 		default:
-			ESP_LOGI(TAG, "Unknown failure\n");
-			ram_poweroff();
+			ESP_LOGI(TAG, "Unknown failure(%d)", ret);
 			break;
 		}
 	}
@@ -197,20 +182,21 @@ static uint64_t GetTimeMicroseconds()
 
 static int ReadKBByte(void)
 {
-	uint8_t rxchar;
-	int rread;
+	// uint8_t rxchar;
+	// int rread;
 
-	rread = -1;
+	// rread = usb_serial_jtag_ll_read_rxfifo(&rxchar, 1);
 
-	if (rread > 0)
-		return rxchar;
-	else
+	// if (rread > 0)
+	// 	return rxchar;
+	// else
 		return -1;
 }
 
 static int IsKBHit(void)
 {
-	return 0;
+    return 0;
+	// return usb_serial_jtag_ll_rxfifo_data_available();
 }
 
 static uint32_t HandleException(uint32_t ir, uint32_t code)
@@ -225,11 +211,11 @@ static uint32_t HandleException(uint32_t ir, uint32_t code)
 static uint32_t HandleControlStore(uint32_t addy, uint32_t val)
 {
 	//UART 8250 / 16550 Data Buffer
-	ESP_LOGI(TAG, "HCS(%lu, %lu);", addy, val);
 	if (addy == 0x10000000) {
-		// const char* str = val;
-		ESP_LOGI(TAG, "%lu", val);
-		// uart_write_bytes(UART_NUM_2, (const char*)str, strlen(str));
+        // ESP_LOGI(TAG, "%s", (char*) &val);
+		printf("%s", (char*)&val);
+		// while (usb_serial_jtag_ll_write_txfifo((uint8_t *)&val, 1) < 1) ;
+		// usb_serial_jtag_ll_txfifo_flush();
 	}
 	return 0;
 }
@@ -250,10 +236,10 @@ static void HandleOtherCSRWrite(uint8_t *image, uint16_t csrno, uint32_t value)
 
 	switch (csrno) {
 	case 0x136:
-		ESP_LOGI(TAG, "%d", (int)value);
+		printf("%d", (int)value);
 		break;
 	case 0x137:
-		ESP_LOGI(TAG, "%08x", (int)value);
+		printf("%08x", (int)value);
 		break;
 	case 0x138:
 		//Print "string"
@@ -265,14 +251,12 @@ static void HandleOtherCSRWrite(uint8_t *image, uint16_t csrno, uint32_t value)
 			uint8_t c = MINIRV32_LOAD1(ptrend);
 			if (c == 0)
 				break;
-			// while (usb_serial_jtag_ll_write_txfifo((uint8_t *)&value, 1) < 1) ;
-			// usb_serial_jtag_ll_txfifo_flush();
+			printf("%c", c);
 			ptrend++;
 		}
 		break;
 	case 0x139:
-		// while (usb_serial_jtag_ll_write_txfifo((uint8_t *)&value, 1) < 1) ;
-		// usb_serial_jtag_ll_txfifo_flush();
+		printf("%c", (uint8_t) value);
 		break;
 	default:
 		break;
