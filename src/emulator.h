@@ -96,7 +96,7 @@ struct MiniRV32IMAState
 	uint32_t extraflags;
 };
 
-MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count );
+// MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count );
 
 #ifdef MINIRV32_IMPLEMENTATION
 
@@ -104,6 +104,8 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 #define SETCSR( x, val ) { state->x = val; }
 #define REG( x ) state->regs[x]
 #define REGSET( x, val ) { state->regs[x] = val; }
+
+uint32_t inst__load(uint32_t ofs);
 
 MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count )
 {
@@ -252,6 +254,9 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 					if( addy & 0x800 ) addy |= 0xfffff000;
 					addy += rs1 - MINIRV32_RAM_IMAGE_OFFSET;
 					rdid = 0;
+
+					//printf( "addr: %u, val: %u  m\n", addy, rs2 );
+					//fflush( stdout );
 
 					if( addy >= MINI_RV32_RAM_SIZE-3 )
 					{
@@ -407,7 +412,7 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 							CSR( mstatus ) |= 8;    //Enable interrupts
 							CSR( extraflags ) |= 4; //Infor environment we want to go to sleep.
 							SETCSR( pc, pc + 4 );
-							return 1;
+							// return 1;
 						}
 						else if( ( ( csrno & 0xff ) == 0x02 ) )  // MRET
 						{

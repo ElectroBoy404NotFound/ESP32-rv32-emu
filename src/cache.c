@@ -5,6 +5,7 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "cache.h"
@@ -69,9 +70,9 @@ void cache_write(uint32_t ofs, void *buf, uint32_t size)
 				p = cachelines[index][ti].data;
 
 				if (*tp & DIRTY) {
-					psram_write(*tp & ~0x3f, p, 64);
+					ram_write(*tp & ~0x3f, p, 64, false);
 				}
-				psram_read(ofs & ~0x3f, p, 64);
+				ram_read(ofs & ~0x3f, p, 64);
 				*tp = ofs & ~0x3f;
 				*tp |= VALID;
 			}
@@ -80,7 +81,7 @@ void cache_write(uint32_t ofs, void *buf, uint32_t size)
 				continue;
 
 			ti = i;
-			psram_read(ofs & ~0x3f, p, 64);
+			ram_read(ofs & ~0x3f, p, 64);
 			*tp = ofs & ~0x3f;
 			*tp |= VALID;
 		}
@@ -120,9 +121,9 @@ void cache_read(uint32_t ofs, void *buf, uint32_t size)
 				p = cachelines[index][ti].data;
 
 				if (*tp & DIRTY) {
-					psram_write(*tp & ~0x3f, p, 64);
+					ram_write(*tp & ~0x3f, p, 64, true);
 				}
-				psram_read(ofs & ~0x3f, p, 64);
+				ram_read(ofs & ~0x3f, p, 64);
 				*tp = ofs & ~0x3f;
 				*tp |= VALID;
 			}
@@ -131,7 +132,7 @@ void cache_read(uint32_t ofs, void *buf, uint32_t size)
 				continue;
 
 			ti = i;
-			psram_read(ofs & ~0x3f, p, 64);
+			ram_read(ofs & ~0x3f, p, 64);
 			*tp = ofs & ~0x3f;
 			*tp |= VALID;
 		}

@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2023, Jisheng Zhang <jszhang@kernel.org>. All rights reserved.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
+#ifndef RAM_H_
+#define RAM_H_
 
-#ifndef PSRAM_H
-#define PSRAM_H
+#include <string.h>
+#include <unistd.h>
+#include <stdbool.h>
 
-#include "driver/spi_master.h"
+int ram_init(void);
+int ram_read(uint32_t addr, void *buf, int len);
+int ram_write(uint32_t addr, void *buf, int len, bool end);
+int ram_copyfromflash(uint32_t flashAddr, uint32_t len, uint32_t ramAddr);
+int ram_copylinuxdisktoram(uint32_t ramAddr);
+int ram_poweroff();
 
-int psram_init(void);
-int psram_read(uint32_t addr, void *buf, int len);
-int psram_write(uint32_t addr, void *buf, int len);
+int inst_read(uint32_t addr, void *buf, int len);
 
-#endif /* PSRAM_H */
+#endif /* RAM_H */
