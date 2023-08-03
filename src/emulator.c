@@ -248,7 +248,7 @@ restart:
 	ESP_LOGI(TAG, "Loaded Kernel into RAM!");
 	uint32_t dtb_ptr = ram_amt - sizeof(default64mbdtb);
     uint32_t validram = dtb_ptr;
-    ram_write(dtb_ptr, default64mbdtb, sizeof(default64mbdtb), false);
+    ram_write(dtb_ptr, default64mbdtb, sizeof(default64mbdtb));
 
 	// ram_copyfromflash(dtb_start, (dtb_end - dtb_start), 8388608 - (dtb_end - dtb_start));
 
@@ -266,13 +266,15 @@ restart:
 
 
 	// Image is loaded.
-	uint64_t lastTime = GetTimeMicroseconds();
+	uint64_t lastTime = 0;
+	uint32_t time_divisor = 1024;
+	// uint32_t time_divisor = 1;
 	int instrs_per_flip = 1024;
 	ESP_LOGI(TAG, "RV32IMA starting\n");
 	while (1) {
 		int ret;
 		uint64_t *this_ccount = ((uint64_t*)&core.cyclel);
-		uint32_t elapsedUs = GetTimeMicroseconds() - lastTime;
+		uint32_t elapsedUs = *this_ccount / time_divisor - lastTime;
 
 		lastTime = elapsedUs;
 		ret = MiniRV32IMAStep(&core, NULL, 0, elapsedUs, instrs_per_flip);
@@ -280,26 +282,27 @@ restart:
 		case 0:
 			break;
 		case 1:
-			// MiniSleep();
+			MiniSleep();
 			*this_ccount += instrs_per_flip;
+			ESP_LOGI(TAG, "Sleep...");
 			break;
 		case 3:
+			ESP_LOGI(TAG, "Got return 3!");
 			break;
 		case 0x7777:
 			goto restart;
 		case 0x5555:
 			ESP_LOGI(TAG, "POWEROFF@0x%"PRIu32"%"PRIu32"", core.cycleh, core.cyclel);
-			DumpState(&core);
-			ram_poweroff();
 			return;
 		default:
-			ESP_LOGI(TAG, "Unknown failure! Restarting..");
+			ESP_LOGI(TAG, "Unknown failure (%d)! Restarting..", ret);
 			goto restart;
 			break;
 		}
 	}
 
 	DumpState(&core);
+	ram_poweroff();
 }
 //////////////////////////////////////////////////////////////////////////
 // Platform-specific functionality
@@ -323,16 +326,18 @@ static int ReadKBByte(void)
 
 	// rread = usb_serial_jtag_ll_read_rxfifo(&rxchar, 1);
 
-	if (charin > 0)
+	if (charin > 0 && charin < 255) {
+		charin = 0;
 		return charin;
-	else
+	}else
 		return -1;
 }
 
 static int IsKBHit(void)
 {
 	charin = getc(stdin);
-    return charin > 0;
+	// printf("%d", charin);
+    return charin > 0 && charin < 255;
 	// return usb_serial_jtag_ll_rxfifo_data_available();
 }
 

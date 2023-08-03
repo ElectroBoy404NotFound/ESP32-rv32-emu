@@ -104,27 +104,27 @@ int ram_copylinuxdisktoram(uint32_t ramAddr) {
 	char dat[512];
 	for(uint32_t i = 0; i < len; i += 512) {
 		inst_read(i, &dat, 512);
-		ram_write(i, &dat, 512, false);
+		ram_write(i, &dat, 512);
 	}
 	fclose(linux);
 	return 0;
 }
 
-int ram_write(uint32_t addr, void *buf, int len, bool end) {
+int ram_write(uint32_t addr, void *buf, int len) {
 	fseek(ramdisk, addr, SEEK_SET);
 	fwrite(buf, 1, len, ramdisk);
 	fflush(ramdisk);
 	return 0;
 }
 
-int ram_copyfromflash(uint32_t flashAddr, uint32_t len, uint32_t ramAddr) {
-	char dmabuf[64];
-	for(int i = 0; i < len; i += 64) {
-		esp_flash_read(NULL, dmabuf, flashAddr + i, 64);
-		ram_write(ramAddr + i, dmabuf, 64, false);
-	}
-	return 0;
-}
+// int ram_copyfromflash(uint32_t flashAddr, uint32_t len, uint32_t ramAddr) {
+// 	char dmabuf[64];
+// 	for(int i = 0; i < len; i += 64) {
+// 		esp_flash_read(NULL, dmabuf, flashAddr + i, 64);
+// 		ram_write(ramAddr + i, dmabuf, 64);
+// 	}
+// 	return 0;
+// }
 
 int ram_poweroff() {
     ESP_LOGI("RAM", "Ram POWER OFF");

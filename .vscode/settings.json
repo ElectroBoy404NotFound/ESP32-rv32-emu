@@ -6,6 +6,7 @@
         "fstream": "c",
         "array": "c",
         "string": "c",
-        "eeprom.h": "c"
+        "eeprom.h": "c",
+        "string.h": "c"
     }
 }

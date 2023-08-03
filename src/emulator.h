@@ -45,22 +45,6 @@
 	#define MINIRV32_HANDLE_MEM_LOAD_CONTROL(...);
 #endif
 
-#ifndef MINIRV32_OTHERCSR_WRITE
-	#define MINIRV32_OTHERCSR_WRITE(...);
-#endif
-
-#ifndef MINIRV32_OTHERCSR_READ
-	#define MINIRV32_OTHERCSR_READ(...);
-#endif
-
-#ifndef MINIRV32_CUSTOM_MEMORY_BUS
-	#define MINIRV32_STORE4( ofs, val ) *(uint32_t*)(image + ofs) = val
-	#define MINIRV32_STORE2( ofs, val ) *(uint16_t*)(image + ofs) = val
-	#define MINIRV32_STORE1( ofs, val ) *(uint8_t*)(image + ofs) = val
-	#define MINIRV32_LOAD4( ofs ) *(uint32_t*)(image + ofs)
-	#define MINIRV32_LOAD2( ofs ) *(uint16_t*)(image + ofs)
-	#define MINIRV32_LOAD1( ofs ) *(uint8_t*)(image + ofs)
-#endif
 
 // As a note: We quouple-ify these, because in HLSL, we will be operating with
 // uint4's.  We are going to uint4 data to/from system RAM.
@@ -105,8 +89,6 @@ struct MiniRV32IMAState
 #define REG( x ) state->regs[x]
 #define REGSET( x, val ) { state->regs[x] = val; }
 
-uint32_t inst__load(uint32_t ofs);
-
 MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count )
 {
 	uint32_t new_timer = CSR( timerl ) + elapsedUs;
@@ -123,8 +105,10 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 		CSR( mip ) &= ~(1<<7);
 
 	// If WFI, don't run processor.
-	if( CSR( extraflags ) & 4 )
+	if( CSR( extraflags ) & 4 ) {
+		printf("\nWFI\n");
 		return 1;
+	}
 
 	uint32_t trap = 0;
 	uint32_t rval = 0;
@@ -412,7 +396,7 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 							CSR( mstatus ) |= 8;    //Enable interrupts
 							CSR( extraflags ) |= 4; //Infor environment we want to go to sleep.
 							SETCSR( pc, pc + 4 );
-							// return 1;
+							return 1;
 						}
 						else if( ( ( csrno & 0xff ) == 0x02 ) )  // MRET
 						{

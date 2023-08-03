@@ -5,11 +5,11 @@
  */
 
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "cache.h"
 #include "psram.h"
+#include <stdio.h>
 
 struct cacheline {
 	uint8_t data[64];
@@ -70,7 +70,7 @@ void cache_write(uint32_t ofs, void *buf, uint32_t size)
 				p = cachelines[index][ti].data;
 
 				if (*tp & DIRTY) {
-					ram_write(*tp & ~0x3f, p, 64, false);
+					ram_write(*tp & ~0x3f, p, 64);
 				}
 				ram_read(ofs & ~0x3f, p, 64);
 				*tp = ofs & ~0x3f;
@@ -121,7 +121,7 @@ void cache_read(uint32_t ofs, void *buf, uint32_t size)
 				p = cachelines[index][ti].data;
 
 				if (*tp & DIRTY) {
-					ram_write(*tp & ~0x3f, p, 64, true);
+					ram_write(*tp & ~0x3f, p, 64);
 				}
 				ram_read(ofs & ~0x3f, p, 64);
 				*tp = ofs & ~0x3f;
